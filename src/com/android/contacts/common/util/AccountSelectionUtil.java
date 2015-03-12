@@ -24,6 +24,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
@@ -66,22 +67,31 @@ public class AccountSelectionUtil {
 
         final private Context mContext;
         final private int mResId;
+        final private int mSubscriptionId;
 
         protected List<AccountWithDataSet> mAccountList;
 
         public AccountSelectedListener(Context context, List<AccountWithDataSet> accountList,
-                int resId) {
+                int resId, int subscriptionId) {
             if (accountList == null || accountList.size() == 0) {
                 Log.e(LOG_TAG, "The size of Account list is 0.");
             }
             mContext = context;
             mAccountList = accountList;
             mResId = resId;
+            mSubscriptionId = subscriptionId;
+        }
+
+        public AccountSelectedListener(Context context, List<AccountWithDataSet> accountList,
+                int resId) {
+            // Subscription id is only needed for importing from SIM card. We can safely ignore
+            // its value for SD card importing.
+            this(context, accountList, resId, SubscriptionManager.INVALID_SUBSCRIPTION_ID);
         }
 
         public void onClick(DialogInterface dialog, int which) {
             dialog.dismiss();
-            doImport(mContext, mResId, mAccountList.get(which));
+            doImport(mContext, mResId, mAccountList.get(which), mSubscriptionId);
         }
         /**
          * Reset the account list for this listener, to make sure the selected
@@ -196,10 +206,10 @@ public class AccountSelectionUtil {
     }
 
     public static void doImport(Context context, int resId,
-            AccountWithDataSet account) {
+            AccountWithDataSet account, int subscriptionId) {
         switch (resId) {
         case R.string.import_from_sim: {
-            doImportFromSim(context, account);
+            doImportFromSim(context, account, subscriptionId);
             break;
         }
         case R.string.import_from_sdcard: {
@@ -209,13 +219,15 @@ public class AccountSelectionUtil {
         }
     }
 
-    public static void doImportFromSim(Context context, AccountWithDataSet account) {
+    public static void doImportFromSim(Context context, AccountWithDataSet account,
+            int subscriptionId) {
         Intent importIntent = new Intent(SimContactsConstants.ACTION_MULTI_PICK_SIM);
         if (account != null) {
             importIntent.putExtra(SimContactsConstants.ACCOUNT_NAME, account.name);
             importIntent.putExtra(SimContactsConstants.ACCOUNT_TYPE, account.type);
             importIntent.putExtra(SimContactsConstants.ACCOUNT_DATA, account.dataSet);
         }
+        importIntent.putExtra("subscription_id", (Integer) subscriptionId);
         if (TelephonyManager.getDefault().isMultiSimEnabled()) {
             importIntent.putExtra(SimContactsConstants.SUB, mImportSub);
         } else {
